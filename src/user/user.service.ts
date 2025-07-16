@@ -7,6 +7,7 @@ import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { User } from './interfaces/user.interface';
 import * as bcrypt from 'bcrypt';
+import { faker } from '@faker-js/faker';
 
 @Injectable()
 export class UserService {
@@ -20,15 +21,19 @@ export class UserService {
 
   // 创建用户
   async create(createUserDto: CreateUserDto): Promise<any> {
-    const { username, password, email } = createUserDto;
+    const { password = '123456', email } = createUserDto;
 
     // 对密码进行加密
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // 生成随机头像和用户名
+    const randomSeed = Math.random().toString(36).substring(2, 10);
+    const avatarUrl = `https://api.dicebear.com/7.x/miniavs/svg?seed=${randomSeed}`;
+    const username = faker.internet.userName();
     const response = await this.supabase
       .from('user')
-      .insert({ username, password: hashedPassword, email })
+      .insert({ username, password: hashedPassword, email, avatar: avatarUrl })
       .select()
       .single();
 
@@ -42,7 +47,7 @@ export class UserService {
   }
 
   // 查询用户
-  async findOne(queryUserDto: QueryUserDto): Promise<any> {
+  async findOne(queryUserDto: QueryUserDto): Promise<User> {
     const { id, username, email } = queryUserDto;
     const response = this.supabase.from('user').select('*');
     if (id) {

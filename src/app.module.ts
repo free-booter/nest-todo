@@ -6,6 +6,7 @@ import { TagModule } from './tag/tag.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuthModule } from './auth/auth.module';
     TagModule,
     UserModule,
     AuthModule,
+    MailModule,
   ],
   providers: [
     {

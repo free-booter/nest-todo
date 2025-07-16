@@ -59,7 +59,12 @@ export class TransformInterceptor implements NestInterceptor {
           return result;
         }
         const result = this.transformValue(data);
-        return result;
+
+        return {
+          code: 200,
+          message: '操作成功',
+          data: result,
+        };
       }),
     );
   }

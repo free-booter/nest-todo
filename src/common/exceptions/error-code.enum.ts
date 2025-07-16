@@ -4,6 +4,7 @@ export enum ErrorCode {
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
   NOT_FOUND = 404,
+
   INTERNAL_ERROR = 500,
 }
 

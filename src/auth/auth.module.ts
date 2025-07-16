@@ -5,6 +5,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserModule } from '../user/user.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthController } from './auth.controller';
       signOptions: { expiresIn: '24h' },
     }),
     UserModule,
+    MailModule,
   ],
   providers: [AuthService, JwtStrategy] as Provider[],
   controllers: [AuthController] as Type[],
