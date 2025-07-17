@@ -4,7 +4,7 @@ import { UserService } from '../user/user.service';
 import { User } from '../user/interfaces/user.interface';
 import * as bcrypt from 'bcrypt';
 import { MailService } from 'src/mail/mail.service';
-import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { CreateUserDto } from 'src/user/dto/create.dto';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +28,7 @@ export class AuthService {
      * 否则，提示用户注册
      */
     let user = await this.userService.findOne({ email });
+
     if (!user && !code) {
       throw new UnauthorizedException('用户不存在');
     }

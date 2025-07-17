@@ -19,7 +19,7 @@ export class MailController {
   }
 
   @Post('verify')
-  verify(@Body() body: { email: string; code: string }) {
+  verify(@Body() body: { email: string; code: number }) {
     return this.mailService.verifyVerificationCode(body.email, body.code);
   }
 }

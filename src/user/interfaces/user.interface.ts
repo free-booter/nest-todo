@@ -1,4 +1,4 @@
-import { CreateUserDto } from '../dto/create-user.dto';
+import { CreateUserDto } from '../dto/create.dto';
 
 export interface User extends CreateUserDto {
   id: number;
@@ -7,4 +7,10 @@ export interface User extends CreateUserDto {
   email: string;
   createdAt: Date;
   token?: string;
+}
+
+export interface UserRequest extends Request {
+  user: {
+    id: number;
+  };
 }

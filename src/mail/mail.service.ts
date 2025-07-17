@@ -6,7 +6,6 @@ import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { handleHtmlMail } from './config';
 import { CreateEmailDto } from './dto/create-email.dto';
-import dayjs from 'dayjs';
 
 @Injectable()
 export class MailService {
@@ -54,19 +53,18 @@ export class MailService {
   }
 
   // 校验验证码
-  async verifyVerificationCode(email: string, code: string) {
+  async verifyVerificationCode(email: string, code: number) {
     const response = await this.supabase
       .from('verification_codes')
       .select('*')
       .eq('email', email)
       .eq('code', code)
-      .single();
+      .maybeSingle();
     const { data, error } = response as { data: CreateEmailDto | null; error: Error | null };
     if (error) throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
     if (!data) throw new CustomException(ErrorCode.NOT_FOUND, '验证码不存在');
     if (data.used) throw new CustomException(ErrorCode.PARAMS_ERROR, '验证码已使用');
     // 处理时间
-
     const expirationTime = new Date(data.expirationTime as string).getTime();
     if (expirationTime < Date.now()) throw new CustomException(ErrorCode.PARAMS_ERROR, '验证码已过期');
     // 更新验证码状态
