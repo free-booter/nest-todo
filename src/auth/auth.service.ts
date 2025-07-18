@@ -54,12 +54,12 @@ export class AuthService {
     return user;
   }
 
-  userLogin(user: User): User {
+  userLogin(user: User): { userInfo: User } & { token: string } {
     const payload = { username: user.username, sub: user.id };
     // 删除user中的password
     delete user.password;
     return {
-      ...user,
+      userInfo: user,
       token: this.jwtService.sign(payload),
     };
   }
