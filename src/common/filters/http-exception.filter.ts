@@ -22,7 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const errorResponse = {
-      statusCode: status,
+      code: status,
       message,
       data: null,
     };

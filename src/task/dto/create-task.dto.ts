@@ -1,42 +1,88 @@
 // 数据传输对象
 import { PartialType } from '@nestjs/mapped-types';
+import { TaskDateType, TaskPriority, TaskRemindType, TaskRepeatType, TaskStatus } from '../types';
+import {
+  IsString,
+  IsNotEmpty,
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsNumber,
+  IsDateString,
+  Matches,
+  ArrayNotEmpty,
+} from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTaskDto {
-  title: string; // 任务名称
-  description?: string; // 任务描述（可选）
-  priority: number; // 优先级 (1: 高, 2: 中, 3: 低)
+  @ApiProperty({ description: '任务标题' })
+  @IsString({ message: '标题必须是字符串' })
+  @IsNotEmpty({ message: '标题不能为空' })
+  title: string;
 
-  // 时间相关
-  date_type: number; // 时间类型 (1: 今天, 2: 明天, 3: 指定日期, 4: 时间段, 5: 无截止日期)
-  start_date?: Date; // 开始日期（可选）
-  end_date?: Date; // 结束日期（可选）
-  specific_time?: string; // 具体时间点（可选）
+  @ApiProperty({ description: '任务描述' })
+  @IsOptional()
+  @IsString({ message: '描述必须是字符串' })
+  // @IsNotEmpty({ message: '描述不能为空' })
+  description: string;
 
-  // 提醒相关
-  remind_type: number; // 提醒类型
-  advance_type?: number; // 自定义提醒类型（可选）
-  advance_value?: number; // 提前时间值（可选）
-  remind_time: string; // 提醒时间点
+  @ApiProperty({ description: '标签ID数组' })
+  @IsOptional()
+  @IsArray({ message: '标签必须是数组' })
+  // @ArrayNotEmpty({ message: '至少选择一个标签' })
+  tagIds: number[];
 
-  // 重复相关
-  repeat_type: number; // 重复类型
+  @ApiProperty({ description: '任务状态', enum: TaskStatus })
+  @IsEnum(TaskStatus, { message: '无效的任务状态' })
+  status: TaskStatus;
 
-  // 标签相关
-  tag_ids?: number[]; // 标签ID数组（可选）
-}
+  @ApiProperty({ description: '任务优先级', enum: TaskPriority })
+  @IsEnum(TaskPriority, { message: '无效的优先级' })
+  priority: TaskPriority;
 
-export class UpdateTaskDto extends PartialType(CreateTaskDto) {
-  status?: number; // 任务状态 (1: 待办, 2: 进行中, 3: 已完成)
-}
+  // 到期时间设置
+  @ApiProperty({ description: '日期类型', enum: TaskDateType })
+  @IsEnum(TaskDateType, { message: '无效的日期类型' })
+  dateType: TaskDateType;
 
-export class QueryTaskDto {
-  status?: number; // 按状态筛选
-  priority?: number; // 按优先级筛选
-  date_type?: number; // 按时间类型筛选
-  tag_ids?: number[]; // 按标签筛选
-  search?: string; // 搜索关键词
-  sort_by?: string; // 排序字段
-  sort_order?: 'asc' | 'desc'; // 排序方向
-  page?: number; // 页码
-  limit?: number; // 每页数量
+  @ApiProperty({ description: '指定日期', required: false })
+  @IsOptional()
+  @IsDateString({}, { message: '无效的日期格式' })
+  date: string;
+
+  @ApiProperty({ description: '开始日期', required: false })
+  @IsOptional()
+  @IsDateString({}, { message: '无效的开始日期格式' })
+  startDate?: string;
+
+  @ApiProperty({ description: '结束日期', required: false })
+  @IsOptional()
+  @IsDateString({}, { message: '无效的结束日期格式' })
+  endDate?: string;
+
+  @ApiProperty({ description: '具体时间', required: false })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: '时间格式必须为 HH:mm' })
+  specificTime?: string;
+
+  // 提醒设置
+  @ApiProperty({ description: '提醒类型', enum: TaskRemindType, required: false })
+  @IsOptional()
+  @IsEnum(TaskRemindType, { message: '无效的提醒类型' })
+  remindType?: TaskRemindType;
+
+  @ApiProperty({ description: '提前提醒数值', required: false })
+  @IsOptional()
+  @IsNumber({}, { message: '提醒值必须是数字' })
+  remindValue?: number;
+
+  @ApiProperty({ description: '提醒时间', required: false })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: '提醒时间格式必须为 HH:mm' })
+  remindTime?: string;
+
+  @ApiProperty({ description: '重复类型', enum: TaskRepeatType, required: false })
+  @IsOptional()
+  @IsEnum(TaskRepeatType, { message: '无效的重复类型' })
+  repeatType?: TaskRepeatType;
 }

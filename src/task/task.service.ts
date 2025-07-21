@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { CreateTaskDto, QueryTaskDto } from './dto/create-task.dto';
+import { CreateTaskDto } from './dto/create-task.dto';
+import { CustomException } from 'src/common/exceptions/custom.exception';
+import { ErrorCode } from 'src/common/exceptions/error-code.enum';
+import { QueryTaskDto } from './dto/query-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
@@ -14,43 +18,125 @@ export class TasksService {
   }
 
   // 创建任务
-  async create(createTaskDto: CreateTaskDto): Promise<any> {
-    const { tag_ids, ...taskData } = createTaskDto;
+  async create(createTaskDto: CreateTaskDto & { userId: number }): Promise<any> {
+    const { tagIds, ...taskData } = createTaskDto;
 
-    const response = await this.supabase.from('tasks').insert(taskData).select().single();
-    const { data, error: taskError } = response as { data: { id: number } | null; error: Error | null };
+    // 1. 创建任务
+    const { data, error } = (await this.supabase.from('task').insert(taskData).select().maybeSingle()) as {
+      data: { id: number } | null;
+      error: Error | null;
+    };
+    if (error || !data) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建任务失败');
+    }
+    // 2. 创建任务标签关联
+    if (tagIds && tagIds.length > 0) {
+      const { error: tagError } = await this.supabase
+        .from('task_tag')
+        .insert(tagIds.map((tagId) => ({ taskId: data.id, tagId: tagId })));
+      if (tagError) {
+        throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建任务标签关联失败');
+      }
+    }
+    return data;
+  }
 
-    if (taskError) throw taskError;
-    if (!data) throw new Error('Task creation failed');
-    const task = data;
+  // 获取任务列表
+  async getTaskList(userId: number, queryTaskDto: QueryTaskDto): Promise<any> {
+    const { page = 1, pageSize = 10, keyword, status, priority, tagId } = queryTaskDto;
+    // 1. 构建基础查询
+    let query = this.supabase
+      .from('task')
+      .select(
+        `
+        *,
+        tagIds:task_tag (
+          tagId
+        )
+      `,
+        { count: 'exact' },
+      )
+      .eq('userId', userId);
 
-    // 如果有标签，创建关联
-    if (Array.isArray(tag_ids) && tag_ids.length > 0) {
-      const taskTags = tag_ids.map((tag_id: number) => ({
-        task_id: task.id,
-        tag_id,
-      }));
-
-      const { error: tagError } = await this.supabase.from('task_tags').insert(taskTags);
-      if (tagError) throw tagError;
+    // 2. 添加筛选条件
+    if (status !== undefined) {
+      query = query.eq('status', status);
     }
 
-    return task;
+    if (priority !== undefined) {
+      query = query.eq('priority', priority);
+    }
+
+    // 3. 关键词搜索（标题和描述）
+    if (keyword) {
+      query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%`);
+    }
+
+    // 4. 标签筛选
+    if (tagId) {
+      query = query.eq('task_tag.tagId', tagId);
+    }
+
+    // 5. 分页
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    query = query.order('createdAt', { ascending: false }).range(from, to);
+
+    // 6. 执行查询
+    const { data, error, count } = await query;
+    if (error) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '获取任务列表失败');
+    }
+
+    // 7. 返回结果
+    return {
+      list: data || [],
+      current: page,
+      pageSize,
+      total: count || 0,
+      totalPages: Math.ceil((count || 0) / pageSize),
+    };
   }
-  // 查询任务
-  async findAll(queryTaskDto: QueryTaskDto): Promise<any> {
-    const { status, priority, date_type, tag_ids, search, sort_by, sort_order, page, limit } = queryTaskDto;
-    console.log(queryTaskDto);
-    const query = this.supabase.from('task').select('*');
-    if (status) query.eq('status', status);
-    if (priority) query.eq('priority', priority);
-    if (date_type) query.eq('date_type', date_type);
-    if (tag_ids) query.in('tag_ids', tag_ids);
-    if (search) query.ilike('title', `%${search}%`);
-    if (sort_by) query.order(sort_by, { ascending: sort_order === 'asc' });
-    if (page && limit) query.range((page - 1) * limit, page * limit - 1);
-    const { data, error } = await query;
-    if (error) throw error;
+
+  // 获取任务详情
+  async getTaskDetail(userId: number, taskId: number) {
+    const { data, error } = await this.supabase
+      .from('task')
+      .select(
+        `
+        *,
+        tagIds:task_tag (
+          tagId
+        )
+      `,
+      )
+      .eq('id', taskId)
+      .eq('userId', userId)
+      .single();
+
+    if (error) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '获取任务详情失败');
+    }
+
+    if (!data) {
+      throw new CustomException(ErrorCode.NOT_FOUND, '任务不存在');
+    }
+
+    return data;
+  }
+
+  // 更新任务
+  async updateTask(userId: number, taskId: number, updateTaskDto: UpdateTaskDto) {
+    const { data, error } = await this.supabase
+      .from('task')
+      .update(updateTaskDto)
+      .eq('id', taskId)
+      .eq('userId', userId)
+      .single();
+    if (error) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '更新任务失败');
+    }
     return data;
   }
 }
