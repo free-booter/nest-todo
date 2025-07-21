@@ -43,7 +43,7 @@ export class TasksService {
 
   // 获取任务列表
   async getTaskList(userId: number, queryTaskDto: QueryTaskDto): Promise<any> {
-    const { page = 1, pageSize = 10, keyword, status, priority, tagId } = queryTaskDto;
+    const { current = 1, size = 10, keyword, status, priority, tagId } = queryTaskDto;
     // 1. 构建基础查询
     let query = this.supabase
       .from('task')
@@ -78,8 +78,8 @@ export class TasksService {
     }
 
     // 5. 分页
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+    const from = (current - 1) * size;
+    const to = from + size - 1;
 
     query = query.order('createdAt', { ascending: false }).range(from, to);
 
@@ -92,10 +92,10 @@ export class TasksService {
     // 7. 返回结果
     return {
       list: data || [],
-      current: page,
-      pageSize,
+      current,
+      size,
       total: count || 0,
-      totalPages: Math.ceil((count || 0) / pageSize),
+      totalPages: Math.ceil((count || 0) / size),
     };
   }
 

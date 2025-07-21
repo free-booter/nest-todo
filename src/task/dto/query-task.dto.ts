@@ -6,12 +6,12 @@ export class QueryTaskDto {
   @ApiProperty({ description: '页码', required: false })
   @IsOptional()
   @IsNumber()
-  page: number = 1;
+  current: number = 1;
 
   @ApiProperty({ description: '每页条数', required: false })
   @IsOptional()
   @IsNumber()
-  pageSize: number = 10;
+  size: number = 10;
 
   @ApiProperty({ description: '关键词', required: false })
   @IsOptional()
