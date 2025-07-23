@@ -127,16 +127,25 @@ export class TasksService {
   }
 
   // 更新任务
-  async updateTask(userId: number, taskId: number, updateTaskDto: UpdateTaskDto) {
+  async updateTask(userId: number, updateTaskDto: UpdateTaskDto) {
     const { data, error } = await this.supabase
       .from('task')
       .update(updateTaskDto)
-      .eq('id', taskId)
+      .eq('id', updateTaskDto.id)
       .eq('userId', userId)
       .single();
     if (error) {
+      console.log(error);
       throw new CustomException(ErrorCode.INTERNAL_ERROR, '更新任务失败');
     }
     return data;
+  }
+
+  // 删除任务
+  async deleteTask(userId: number, taskId: number) {
+    const { error } = await this.supabase.from('task').delete().eq('id', taskId).eq('userId', userId);
+    if (error) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '删除任务失败');
+    }
   }
 }

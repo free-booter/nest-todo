@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, UseGuards, Req, Param, Put } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, UseGuards, Req, Param, Put, Delete } from '@nestjs/common';
 import { TasksService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ApiOperation } from '@nestjs/swagger';
@@ -28,24 +28,24 @@ export class TasksController {
   }
 
   // 获取任务详情保持 GET
-  @Get('detail')
+  @Get('detail/:id')
   @ApiOperation({ summary: '获取任务详情' })
   @UseGuards(JwtAuthGuard)
-  async getTaskDetail(
-    @Query('id') id: number, // 改用 @Query
-    @Req() req: UserRequest,
-  ) {
+  async getTaskDetail(@Param('id') id: number, @Req() req: UserRequest) {
     return this.tasksService.getTaskDetail(req.user.id, id);
   }
 
   @Put('update')
   @ApiOperation({ summary: '更新任务' })
   @UseGuards(JwtAuthGuard)
-  async updateTask(
-    @Query('id') id: number, // 改用 @Query
-    @Body() updateTaskDto: UpdateTaskDto,
-    @Req() req: UserRequest,
-  ) {
-    return this.tasksService.updateTask(req.user.id, id, updateTaskDto);
+  async updateTask(@Body() updateTaskDto: UpdateTaskDto, @Req() req: UserRequest) {
+    return this.tasksService.updateTask(req.user.id, updateTaskDto);
+  }
+
+  @Delete('delete')
+  @ApiOperation({ summary: '删除任务' })
+  @UseGuards(JwtAuthGuard)
+  async deleteTask(@Query('id') id: number, @Req() req: UserRequest) {
+    return this.tasksService.deleteTask(req.user.id, id);
   }
 }
