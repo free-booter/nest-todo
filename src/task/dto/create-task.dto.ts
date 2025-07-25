@@ -1,17 +1,6 @@
 // 数据传输对象
-import { PartialType } from '@nestjs/mapped-types';
 import { TaskDateType, TaskPriority, TaskRemindType, TaskRepeatType, TaskStatus } from '../types';
-import {
-  IsString,
-  IsNotEmpty,
-  IsArray,
-  IsEnum,
-  IsOptional,
-  IsNumber,
-  IsDateString,
-  Matches,
-  ArrayNotEmpty,
-} from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsEnum, IsOptional, IsNumber, IsDateString, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTaskDto {

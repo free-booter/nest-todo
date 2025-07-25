@@ -100,8 +100,8 @@ export class TasksService {
   }
 
   // 获取任务详情
-  async getTaskDetail(userId: number, taskId: number) {
-    const { data, error } = await this.supabase
+  async getTaskDetail(userId: number, taskId: number): Promise<CreateTaskDto & { id: number; tagIds: number[] }> {
+    const { data, error } = (await this.supabase
       .from('task')
       .select(
         `
@@ -113,17 +113,20 @@ export class TasksService {
       )
       .eq('id', taskId)
       .eq('userId', userId)
-      .single();
+      .single()) as {
+      data: (CreateTaskDto & { id: number; tagIds: number[] }) | null;
+      error: Error | null;
+    };
 
     if (error) {
       throw new CustomException(ErrorCode.INTERNAL_ERROR, '获取任务详情失败');
     }
 
-    if (!data) {
-      throw new CustomException(ErrorCode.NOT_FOUND, '任务不存在');
-    }
-
-    return data;
+    return {
+      ...data,
+      specificTime: data.specificTime ? data.specificTime.slice(0, 5) : null,
+      remindTime: data.remindTime ? data.remindTime.slice(0, 5) : null,
+    };
   }
 
   // 更新任务

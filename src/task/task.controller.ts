@@ -31,7 +31,7 @@ export class TasksController {
   @Get('detail/:id')
   @ApiOperation({ summary: '获取任务详情' })
   @UseGuards(JwtAuthGuard)
-  async getTaskDetail(@Param('id') id: number, @Req() req: UserRequest) {
+  getTaskDetail(@Param('id') id: number, @Req() req: UserRequest) {
     return this.tasksService.getTaskDetail(req.user.id, id);
   }
 
