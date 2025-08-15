@@ -11,7 +11,7 @@ export enum TaskStatus {
 }
 
 export enum TaskDateType {
-  NONE = 0, // 无截止日期
+  NONE = 0, // 无完成日期
   TODAY = 1, // 今天
   TOMORROW = 2, // 明天
   SPECIFIC = 3, // 指定日期

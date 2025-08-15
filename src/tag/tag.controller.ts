@@ -26,12 +26,12 @@ export class TagController {
     return this.tagService.delete(id);
   }
 
-  @Put(':id')
+  @Put('update')
   @ApiOperation({ summary: '更新标签' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: number, @Body() updateTagDto: UpdateTagDto) {
-    return this.tagService.update(id, updateTagDto);
+  update(@Body() updateTagDto: UpdateTagDto & { id: number }) {
+    return this.tagService.update(updateTagDto.id, updateTagDto);
   }
 
   @Get('list')

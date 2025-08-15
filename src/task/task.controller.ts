@@ -40,6 +40,7 @@ export class TasksController {
   @UseGuards(JwtAuthGuard)
   async updateTask(@Body() updateTaskDto: UpdateTaskDto, @Req() req: UserRequest) {
     return this.tasksService.updateTask(req.user.id, updateTaskDto);
+    // return this.tasksService.getTaskDetail(req.user.id, updateTaskDto.id);
   }
 
   @Delete('delete')
@@ -47,5 +48,12 @@ export class TasksController {
   @UseGuards(JwtAuthGuard)
   async deleteTask(@Query('id') id: number, @Req() req: UserRequest) {
     return this.tasksService.deleteTask(req.user.id, id);
+  }
+
+  @Put('updateStatus')
+  @ApiOperation({ summary: '更新任务状态' })
+  @UseGuards(JwtAuthGuard)
+  async updateTaskStatus(@Body() updateTaskStatusDto: UpdateTaskDto, @Req() req: UserRequest) {
+    return this.tasksService.updateTaskStatus(req.user.id, updateTaskStatusDto.id, updateTaskStatusDto.status);
   }
 }

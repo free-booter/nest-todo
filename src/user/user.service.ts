@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { CreateUserDto } from './dto/create.dto';
 import { QueryUserDto } from './dto/query.dto';
 import { CustomException } from 'src/common/exceptions/custom.exception';
@@ -9,15 +8,14 @@ import { User } from './interfaces/user.interface';
 import * as bcrypt from 'bcrypt';
 import { faker } from '@faker-js/faker';
 import { UpdateUserDto } from './dto/update.dto';
+import { SupabaseService } from 'src/common/services/supabase.service';
 
 @Injectable()
 export class UserService {
   private supabase: SupabaseClient;
 
-  constructor(private configService: ConfigService) {
-    const url = configService.getOrThrow<string>('SUPABASE_URL');
-    const key = configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
-    this.supabase = createClient(url, key);
+  constructor(private supabaseService: SupabaseService) {
+    this.supabase = this.supabaseService.getClient();
   }
 
   // 创建用户

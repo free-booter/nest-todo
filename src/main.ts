@@ -30,8 +30,10 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 3000);
-  logger.log(`Application is running on: http://localhost:${process.env.PORT ?? 3000}`);
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  logger.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Swagger documentation: http://localhost:${port}/api-docs`);
 }
 bootstrap()
   .then(() => {})

@@ -1,31 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import * as nodemailer from 'nodemailer';
 import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { handleHtmlMail } from './config';
 import { CreateEmailDto } from './dto/create-email.dto';
+import { SupabaseService } from 'src/common/services/supabase.service';
 
 @Injectable()
 export class MailService {
   private transporter: nodemailer.Transporter;
   private supabase: SupabaseClient;
 
-  constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.qq.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: '1596861254@qq.com',
-        pass: 'sqbyxcapdzjeigad',
-      },
-    }) as any as nodemailer.Transporter;
-
-    const url = configService.getOrThrow<string>('SUPABASE_URL');
-    const key = configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
-    this.supabase = createClient(url, key);
+  constructor(private supabaseService: SupabaseService) {
+    this.supabase = this.supabaseService.getClient();
   }
 
   // 发送邮件

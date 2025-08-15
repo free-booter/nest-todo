@@ -1,19 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { UpdateTagDto } from './dto/update-tag.dto';
+import { SupabaseService } from 'src/common/services/supabase.service';
 
 @Injectable()
 export class TagService {
   private supabase: SupabaseClient;
 
-  constructor(private configService: ConfigService) {
-    const url = configService.getOrThrow<string>('SUPABASE_URL');
-    const key = configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
-    this.supabase = createClient(url, key);
+  constructor(private supabaseService: SupabaseService) {
+    this.supabase = this.supabaseService.getClient();
   }
 
   // 创建标签
@@ -26,7 +24,10 @@ export class TagService {
     if (error) {
       throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
     }
-    return data;
+    return {
+      value: data.id,
+      label: name,
+    };
   }
 
   // 删除标签
