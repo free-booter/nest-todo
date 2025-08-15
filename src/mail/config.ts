@@ -1,4 +1,4 @@
-export const handleHtmlMail = (code: string) => `<!DOCTYPE html>
+export const handleHtmlMail = (code: number) => `<!DOCTYPE html>
 <html>
   <body style="font-family: 'Segoe UI', Arial, sans-serif; background: #f7f7f7; padding: 32px;">
     <div style="max-width: 420px; margin: auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #eee; padding: 32px;">

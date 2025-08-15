@@ -14,7 +14,7 @@ export class MailController {
     const code = randomstring.generate({
       length: 6,
       charset: 'numeric',
-    }) as string;
+    }) as number;
     return this.mailService.sendVerificationCode(body.email, code);
   }
 
