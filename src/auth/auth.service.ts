@@ -48,7 +48,7 @@ export class AuthService {
 
     if (!user && code) {
       // 创建用户
-      const newUser = (await this.userService.create({ email, code })) as User;
+      const newUser = (await this.userService.create({ email })) as User;
       user = newUser;
     }
     return user;

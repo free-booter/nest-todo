@@ -4,7 +4,7 @@ import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { handleHtmlMail } from './config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { VerificationCodes } from './entities/mail.entity';
+import { VerificationCodes } from '../entities/mail.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()

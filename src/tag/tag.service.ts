@@ -1,43 +1,37 @@
 import { Injectable } from '@nestjs/common';
-import { SupabaseClient } from '@supabase/supabase-js';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { UpdateTagDto } from './dto/update-tag.dto';
-import { SupabaseService } from 'src/common/services/supabase.service';
+import { TagEntity } from '../entities/tag.entities';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class TagService {
-  private supabase: SupabaseClient;
-
-  constructor(private supabaseService: SupabaseService) {
-    this.supabase = this.supabaseService.getClient();
-  }
+  constructor(
+    @InjectRepository(TagEntity)
+    private readonly tagRepository: Repository<TagEntity>,
+  ) {}
 
   // 创建标签
   async create(CreateTagDto: CreateTagDto, userId: number) {
     const { name } = CreateTagDto;
-    const { data, error } = (await this.supabase.from('tag').insert({ name, userId: userId }).select().single()) as {
-      data: { id: number } | null;
-      error: Error | null;
-    };
-    if (error) {
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
+    const tag = await this.tagRepository.save({ name, userId });
+    if (!tag) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建标签失败');
     }
     return {
-      value: data.id,
+      value: tag.id,
       label: name,
     };
   }
 
   // 删除标签
   async delete(tagId: number) {
-    const { error } = (await this.supabase.from('tag').delete().eq('id', tagId).select().single()) as {
-      data: { id: number } | null;
-      error: Error | null;
-    };
-    if (error) {
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
+    const tag = await this.tagRepository.delete(tagId);
+    if (!tag) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '删除标签失败');
     }
     return;
   }
@@ -45,25 +39,16 @@ export class TagService {
   // 更新标签
   async update(tagId: number, updateTagDto: UpdateTagDto) {
     const { name } = updateTagDto;
-    const { error } = (await this.supabase.from('tag').update({ name }).eq('id', tagId).select().single()) as {
-      data: { id: number } | null;
-      error: Error | null;
-    };
-    if (error) {
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
+    const tag = await this.tagRepository.update(tagId, { name });
+    if (!tag) {
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '更新标签失败');
     }
     return;
   }
 
   // 获取列表
   async getList(userId: number) {
-    const { data, error } = (await this.supabase.from('tag').select('*').eq('userId', userId)) as {
-      data: { id: number } | null;
-      error: Error | null;
-    };
-    if (error) {
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, error.message);
-    }
-    return data;
+    const tags = await this.tagRepository.find({ where: { userId } });
+    return tags;
   }
 }

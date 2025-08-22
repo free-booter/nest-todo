@@ -5,41 +5,36 @@ import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
-import { SupabaseService } from 'src/common/services/supabase.service';
+import { TaskEntity } from 'src/entities/task.entities';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class TasksService {
-  private supabase: SupabaseClient;
-  private readonly logger = new Logger(TasksService.name);
-
-  constructor(private supabaseService: SupabaseService) {
-    this.supabase = this.supabaseService.getClient();
-  }
+  constructor(
+    @InjectRepository(TaskEntity)
+    private readonly taskRepository: Repository<TaskEntity>,
+  ) {}
 
   // 创建任务
   async create(createTaskDto: CreateTaskDto & { userId: number }): Promise<any> {
     const { tagIds, ...taskData } = createTaskDto;
 
     // 1. 创建任务
-    const { data, error } = (await this.supabase.from('task').insert(taskData).select().maybeSingle()) as {
-      data: { id: number } | null;
-      error: Error | null;
-    };
-    if (error || !data) {
+    const task = await this.taskRepository.save(taskData);
+    if (!task) {
       throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建任务失败');
     }
 
     // 2. 创建任务标签关联
     if (tagIds && tagIds.length > 0) {
-      const { error: tagError } = await this.supabase
-        .from('task_tag')
-        .insert(tagIds.map((tagId) => ({ taskId: data.id, tagId: tagId })));
+      const tagError = await this.taskRepository.save(tagIds.map((tagId) => ({ taskId: task.id, tagId: tagId })));
       if (tagError) {
         throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建任务标签关联失败');
       }
     }
 
-    return this.getTaskDetail(createTaskDto.userId, data.id);
+    return this.getTaskDetail(createTaskDto.userId, task.id);
   }
 
   // 获取任务列表
@@ -48,17 +43,15 @@ export class TasksService {
     try {
       const { current = 1, size = 10, keyword, status, priority, tagId } = queryTaskDto;
       // 1. 构建基础查询
-      let query = this.supabase
-        .from('task')
+      let query = this.taskRepository
+        .createQueryBuilder('task')
+        .leftJoinAndSelect('task.tags', 'tags')
+        .leftJoinAndSelect('tags.tag', 'tag')
+        .where('task.userId = :userId', { userId })
         .select(
           `
           *,
-          tags:task_tag (
-            tag:tagId (
-              value:id,
-              label:name
-            )
-          )
+          tags:tag
         `,
           { count: 'exact' },
         )

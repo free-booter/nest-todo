@@ -3,7 +3,7 @@ import { MailController } from './mail.controller';
 import { MailService } from './mail.service';
 // import { SupabaseService } from 'src/common/services/supabase.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { VerificationCodes } from './entities/mail.entity';
+import { VerificationCodes } from '../entities/mail.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([VerificationCodes])],
