@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
+import { TaskTagEntity } from './taskTag.entity';
 
 @Entity()
 export class TagEntity {
@@ -9,7 +10,7 @@ export class TagEntity {
   name: string;
 
   @Column({ nullable: true })
-  color?: string;
+  color: string;
 
   @Column()
   userId: number;
@@ -17,4 +18,7 @@ export class TagEntity {
   // 自动生成创建时间
   @CreateDateColumn({ type: 'datetime' })
   createdAt: Date;
+
+  @OneToMany(() => TaskTagEntity, (taskTag) => taskTag.tag)
+  taskTag: TaskTagEntity[];
 }

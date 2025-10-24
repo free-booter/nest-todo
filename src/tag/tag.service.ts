@@ -3,7 +3,7 @@ import { CreateTagDto } from './dto/create-tag.dto';
 import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { UpdateTagDto } from './dto/update-tag.dto';
-import { TagEntity } from '../entities/tag.entities';
+import { TagEntity } from '../entities/tag.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -17,13 +17,16 @@ export class TagService {
   // 创建标签
   async create(CreateTagDto: CreateTagDto, userId: number) {
     const { name } = CreateTagDto;
-    const tag = await this.tagRepository.save({ name, userId });
+    // 自定义随机颜色
+    const color = this.randomHexColor();
+    const tag = await this.tagRepository.save({ name, userId, color });
     if (!tag) {
       throw new CustomException(ErrorCode.INTERNAL_ERROR, '创建标签失败');
     }
     return {
       value: tag.id,
       label: name,
+      color,
     };
   }
 
@@ -50,5 +53,11 @@ export class TagService {
   async getList(userId: number) {
     const tags = await this.tagRepository.find({ where: { userId } });
     return tags;
+  }
+
+  // 随机 #RRGGBB
+  randomHexColor(): string {
+    const n = Math.floor(Math.random() * 0xffffff); // 0 ~ 16777215
+    return `#${n.toString(16).padStart(6, '0')}`;
   }
 }

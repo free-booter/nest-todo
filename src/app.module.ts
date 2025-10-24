@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TaskModule } from './task/task.module';
 import { TagModule } from './tag/tag.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -20,20 +20,25 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     UserModule,
     TaskModule,
     TagModule,
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      username: 'root',
-      password: '123456',
-      host: 'localhost',
-      port: 3306,
-      database: 'todo',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'], //实体文件
-      synchronize: true, //synchronize字段代表是否自动将实体类同步到数据库
-      retryDelay: 500, //重试连接数据库间隔
-      retryAttempts: 10, //重试连接数据库的次数
-      autoLoadEntities: true, //如果为true,将自动加载实体 forFeature()方法注册的每个实体都将自动添加到配置对象的实体数组中
-      logging: ['error'],
-      charset: 'utf8mb4',
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'mysql',
+        host: configService.get<string>('DB_HOST', process.env.DB_HOST),
+        port: parseInt(configService.get<string>('DB_PORT', process.env.DB_PORT), 10),
+        username: configService.get<string>('DB_USERNAME', process.env.DB_USERNAME),
+        password: configService.get<string>('DB_PASSWORD', process.env.DB_PASSWORD),
+        database: configService.get<string>('DB_DATABASE', process.env.DB_DATABASE),
+        // 依赖 autoLoadEntities，避免与当前非 *.entity.ts 命名冲突
+        autoLoadEntities: true,
+        // 生产环境关闭自动同步
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        retryDelay: 500,
+        retryAttempts: 10,
+        logging: ['error'],
+        charset: 'utf8mb4',
+      }),
     }),
   ],
   providers: [

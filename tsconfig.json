@@ -17,6 +17,7 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "strict": false
+    "strict": false,
+    "esModuleInterop": true, // 自动给 CommonJS 模块生成默认导出
   }
 }

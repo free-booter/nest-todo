@@ -28,6 +28,14 @@ export class QueryTaskDto {
   @IsEnum(TaskPriority)
   priority: TaskPriority;
 
+  @ApiProperty({ description: '逾期', required: false })
+  @IsOptional()
+  isOverdue: boolean;
+
+  @ApiProperty({ description: '今日', required: false })
+  @IsOptional()
+  today: boolean;
+
   // 标签
   @ApiProperty({ description: '标签', required: false })
   @IsOptional()
