@@ -48,6 +48,9 @@ export class TaskEntity {
   @Column()
   userId: number;
 
+  @Column()
+  order: number;
+
   @OneToMany(() => TaskTagEntity, (taskTag) => taskTag.task)
   taskTag: TaskTagEntity[];
 

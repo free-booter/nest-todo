@@ -4,17 +4,8 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { ApiOperation, ApiParam } from '@nestjs/swagger';
 import { UserRequest } from 'src/user/interfaces/user.interface';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { IsEnum, IsNotEmpty } from 'class-validator';
-import { TaskStatus } from './types';
 import { QueryTaskDto } from './dto/query-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
-
-// 状态更新 DTO
-class UpdateTaskStatusDto {
-  @IsEnum(TaskStatus, { message: '无效的任务状态' })
-  @IsNotEmpty({ message: '状态不能为空' })
-  status: TaskStatus;
-}
+import { UpdateTaskDto, UpdateTaskOrderDto, UpdateTaskStatusDto } from './dto/update-task.dto';
 
 @Controller('task')
 export class TasksController {
@@ -32,9 +23,9 @@ export class TasksController {
   @ApiOperation({ summary: '更新任务状态' })
   @ApiParam({ name: 'id', description: '任务ID' })
   @UseGuards(JwtAuthGuard)
-  updateStatus(@Param('id') taskId: number, @Body() updateStatusDto: UpdateTaskStatusDto, @Req() req: UserRequest) {
+  updateStatus(@Param('id') taskId: number, @Body() updateTaskStatusDto: UpdateTaskStatusDto, @Req() req: UserRequest) {
     const userId = req.user.id;
-    return this.tasksService.updateTaskStatus(userId, taskId, updateStatusDto.status);
+    return this.tasksService.updateTaskStatus(userId, taskId, updateTaskStatusDto.status);
   }
 
   @Post('list')
@@ -76,6 +67,26 @@ export class TasksController {
     return this.tasksService.deleteTask(req.user.id, id);
   }
 
+  @Patch(':id/order')
+  @ApiOperation({ summary: '更新任务排序' })
+  @ApiParam({ name: 'id', description: '任务ID' })
+  @UseGuards(JwtAuthGuard)
+  updateTaskOrder(
+    @Param('id') taskId: number,
+    @Body() updateTaskOrderDto: UpdateTaskOrderDto,
+    @Req() req: UserRequest,
+  ) {
+    const userId = req.user.id;
+    const { order, status, prevOrder } = updateTaskOrderDto;
+    return this.tasksService.updateTaskOrder(userId, taskId, order, status, prevOrder);
+  }
+
+  @Get('counts')
+  @ApiOperation({ summary: '获取任务统计数据' })
+  @UseGuards(JwtAuthGuard)
+  getTaskCounts(@Req() req: UserRequest) {
+    return this.tasksService.getTaskCounts(req.user.id);
+  }
   // @Put('updateStatus')
   // @ApiOperation({ summary: '更新任务状态' })
   // @UseGuards(JwtAuthGuard)
