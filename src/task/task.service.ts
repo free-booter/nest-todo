@@ -3,7 +3,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { CustomException } from 'src/common/exceptions/custom.exception';
 import { ErrorCode } from 'src/common/exceptions/error-code.enum';
 import { TaskEntity } from 'src/entities/task.entity';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Repository, EntityManager } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TaskTagEntity } from 'src/entities/taskTag.entity';
 import { StatusMapper, TaskStatusMap } from 'src/common/constants/status-mapper';
@@ -77,12 +77,17 @@ export class TasksService {
       }
 
       // order越大排在前面，新增任务给最大值
-      const maxOrder = await this.taskRepository
-        .createQueryBuilder('task')
-        .where('task.userId = :userId', { userId: saveData.userId })
-        .orderBy('task.order', 'DESC')
-        .getOne();
-      saveData.order = maxOrder ? maxOrder.order + 100 : 100;
+      // 获取用户的所有任务，用于计算唯一的order值
+      const allUserTasks = await this.taskRepository.find({
+        where: { userId: saveData.userId },
+        order: { order: 'DESC' },
+      });
+
+      // 计算候选order值：如果有任务，使用最大order值+1000；否则使用默认值1000000
+      const candidateOrder = allUserTasks.length > 0 ? allUserTasks[0].order + 1000 : 1000000;
+
+      // 确保order值唯一，不与现有任务重复
+      saveData.order = this.ensureUniqueOrder(candidateOrder, allUserTasks);
 
       // 创建任务实体
       const savedTask = await this.taskRepository.save(saveData);
@@ -199,182 +204,248 @@ export class TasksService {
     }
   }
 
-  // 更新任务排序
+  // 拖拽更新任务排序
   async updateTaskOrder(
     userId: number,
-    taskId: number,
-    order: number,
-    status: TaskStatus,
-    prevOrder?: number,
-  ): Promise<any> {
-    // 查找任务是否存在
-    const task = await this.taskRepository.findOne({ where: { id: taskId, userId } });
-    if (!task) {
-      throw new CustomException(ErrorCode.NOT_FOUND, '任务不存在');
-    }
-
-    const newStatusNumber = StatusMapper.taskStatusToNumber(status);
-
-    // 如果prevOrder有值代表需要重新排序所有的任务
-    if (prevOrder) {
-      await this.reorderAllTasksAndInsert(userId, taskId, prevOrder, newStatusNumber);
-      return this.getTaskDetail(userId, taskId);
-    } else {
-      // 简单更新：因为可以拖动排序到别的状态
-      task.status = newStatusNumber;
-      task.order = order;
-      await this.taskRepository.save(task);
-      return this.getTaskDetail(userId, taskId);
-    }
-  }
-
-  // 重新排序所有任务并插入拖拽的任务到指定位置
-  private async reorderAllTasksAndInsert(
-    userId: number,
     draggedTaskId: number,
-    prevOrder: number,
-    newStatus: number,
-  ): Promise<void> {
+    dropId: number | null,
+    dropStatus: TaskStatus,
+  ): Promise<any> {
     try {
-      // 1. 获取用户的所有任务，按当前order排序
-      const allTasks = await this.taskRepository.find({
-        where: { userId },
-        order: { order: 'DESC' }, // order越大排在前面
+      // 查找被拖拽的任务是否存在
+      const draggedTask = await this.taskRepository.findOne({
+        where: { id: draggedTaskId, userId },
       });
-
-      if (allTasks.length === 0) {
-        return;
-      }
-
-      // 2. 找到被拖拽的任务
-      const draggedTask = allTasks.find((task) => task.id === draggedTaskId);
       if (!draggedTask) {
         throw new CustomException(ErrorCode.NOT_FOUND, '被拖拽的任务不存在');
       }
 
-      // 3. 从原列表中移除被拖拽的任务
-      const tasksWithoutDragged = allTasks.filter((task) => task.id !== draggedTaskId);
+      const newStatusNumber = StatusMapper.taskStatusToNumber(dropStatus);
 
-      // 4. 找到prevOrder对应的任务位置
-      let insertIndex = 0;
-      if (prevOrder > 0) {
-        // 找到prevOrder任务在排序后列表中的位置
-        const prevTaskIndex = tasksWithoutDragged.findIndex((task) => task.order === prevOrder);
-        if (prevTaskIndex !== -1) {
-          // 插入到prevOrder任务的后面（索引+1）
-          insertIndex = prevTaskIndex + 1;
-        }
-      }
-      // 如果prevOrder为0或未找到对应任务，则插入到最前面（insertIndex = 0）
-
-      // 5. 将被拖拽的任务插入到指定位置
-      const reorderedTasks = [...tasksWithoutDragged];
-      reorderedTasks.splice(insertIndex, 0, draggedTask);
-
-      // 6. 重新分配order值，从最大值开始递减
-      const maxOrderValue = reorderedTasks.length * 100;
-      const updatePromises = reorderedTasks.map((task, index) => {
-        const newOrder = maxOrderValue - index * 100;
-        const updateData: Partial<TaskEntity> = { order: newOrder };
-
-        // 如果是被拖拽的任务，同时更新状态
-        if (task.id === draggedTaskId) {
-          updateData.status = newStatus;
-        }
-
-        return this.taskRepository.update(task.id, updateData);
-      });
-
-      // 7. 批量执行更新
-      await Promise.all(updatePromises);
-    } catch (error) {
-      if (error instanceof CustomException) {
-        throw error;
-      }
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, '重新排序任务失败');
-    }
-  }
-
-  // 高性能批量更新任务排序（可选的替代方案）
-  private async reorderAllTasksAndInsertOptimized(
-    userId: number,
-    draggedTaskId: number,
-    prevOrder: number,
-    newStatus: number,
-  ): Promise<void> {
-    try {
       // 使用事务确保数据一致性
       await this.taskRepository.manager.transaction(async (manager) => {
-        // 1. 获取用户的所有任务，按当前order排序
+        // 1. 获取用户的所有任务，按order排序（全局排序，不区分状态列）
         const allTasks = await manager.find(TaskEntity, {
           where: { userId },
-          order: { order: 'DESC' },
+          order: { order: 'DESC' }, // order越大排在前面
         });
 
-        if (allTasks.length === 0) {
-          return;
-        }
-
-        // 2. 找到被拖拽的任务
-        const draggedTask = allTasks.find((task) => task.id === draggedTaskId);
-        if (!draggedTask) {
-          throw new CustomException(ErrorCode.NOT_FOUND, '被拖拽的任务不存在');
-        }
-
-        // 3. 从原列表中移除被拖拽的任务
+        // 排除被拖拽的任务，避免影响计算
         const tasksWithoutDragged = allTasks.filter((task) => task.id !== draggedTaskId);
 
-        // 4. 找到插入位置
-        let insertIndex = 0;
-        if (prevOrder > 0) {
-          const prevTaskIndex = tasksWithoutDragged.findIndex((task) => task.order === prevOrder);
-          if (prevTaskIndex !== -1) {
-            insertIndex = prevTaskIndex + 1;
+        // 2. 计算新的order值（基于全局所有任务）
+        let newOrder: number;
+
+        if (dropId === null || dropId === undefined) {
+          // 拖放到列的最顶部
+          const targetStatusTasks = tasksWithoutDragged.filter(
+            (task) => StatusMapper.taskStatusToString(task.status) === dropStatus.toString(),
+          );
+          if (targetStatusTasks.length === 0) {
+            // 该状态列没有任务，基于全局所有任务计算order值
+            if (tasksWithoutDragged.length === 0) {
+              // 用户没有任何其他任务，检查被拖拽任务的当前order值
+              // 如果被拖拽任务的order值小于1000000，使用1000000；否则在其基础上加1000
+              const candidateOrder = draggedTask.order < 1000000 ? 1000000 : draggedTask.order + 1000;
+              newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
+            } else {
+              // 用户有其他任务，放到全局最前面，比最大order值大1000
+              const maxOrder = tasksWithoutDragged[0].order;
+              const candidateOrder = maxOrder + 1000;
+              newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
+            }
+          } else {
+            // 找到目标状态列中order最大的任务，然后基于全局计算
+            const maxOrderInTargetStatus = targetStatusTasks[0].order;
+            // 找到全局中order大于maxOrderInTargetStatus的第一个任务（因为DESC排序，order大的在前面）
+            const globalPrevTask = tasksWithoutDragged.find((task) => task.order > maxOrderInTargetStatus);
+            if (!globalPrevTask) {
+              // 目标状态列的任务已经是全局最大的，放到最前面
+              const candidateOrder = maxOrderInTargetStatus + 1000;
+              newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
+            } else {
+              // 插入到全局PrevTask和目标状态列最大任务之间
+              const minGap = 0.1;
+              if (globalPrevTask.order - maxOrderInTargetStatus < minGap) {
+                // 间距太小，需要重排
+                const insertIndex = tasksWithoutDragged.findIndex((task) => task.id === targetStatusTasks[0].id);
+                await this.rebalanceAllTaskOrders(manager, userId, draggedTask, newStatusNumber, insertIndex);
+                return;
+              }
+              const candidateOrder = (globalPrevTask.order + maxOrderInTargetStatus) / 2;
+              newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
+            }
+          }
+        } else {
+          // 拖放到指定任务的上方（基于全局位置）
+          const dropTask = tasksWithoutDragged.find((task) => task.id === dropId);
+          if (!dropTask) {
+            throw new CustomException(ErrorCode.NOT_FOUND, '拖放目标任务不存在');
+          }
+
+          // 找到dropTask在全局所有任务中的位置
+          const dropTaskGlobalIndex = tasksWithoutDragged.findIndex((task) => task.id === dropId);
+
+          if (dropTaskGlobalIndex === 0) {
+            // 插入到全局第一个任务前面
+            const candidateOrder = dropTask.order + 1000;
+            newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
+          } else {
+            // 插入到两个任务之间（全局位置）
+            const prevTask = tasksWithoutDragged[dropTaskGlobalIndex - 1];
+            const currentTask = tasksWithoutDragged[dropTaskGlobalIndex];
+            const minGap = 0.1; // 最小间距
+            if (prevTask.order - currentTask.order < minGap) {
+              // 间距太小，需要重排所有任务
+              await this.rebalanceAllTaskOrders(manager, userId, draggedTask, newStatusNumber, dropTaskGlobalIndex);
+              return;
+            }
+            const candidateOrder = (prevTask.order + currentTask.order) / 2;
+            newOrder = this.ensureUniqueOrder(candidateOrder, allTasks, draggedTaskId);
           }
         }
 
-        // 5. 重新排列任务
-        const reorderedTasks = [...tasksWithoutDragged];
-        reorderedTasks.splice(insertIndex, 0, draggedTask);
+        // 3. 处理状态变化的时间节点
+        const now = new Date();
+        const statusChanged = draggedTask.status !== newStatusNumber;
+        const updateData: Partial<TaskEntity> = {
+          order: newOrder,
+          status: newStatusNumber,
+        };
 
-        // 6. 使用批量更新SQL语句（更高效）
-        const maxOrderValue = reorderedTasks.length * 100;
+        if (statusChanged) {
+          this.processStatusChangeForDraggedTask(draggedTask, newStatusNumber, updateData, now);
+        }
 
-        // 构建批量更新的case语句
-        const orderCases = reorderedTasks
-          .map((task, index) => {
-            const newOrder = maxOrderValue - index * 100;
-            return `WHEN ${task.id} THEN ${newOrder}`;
-          })
-          .join(' ');
-
-        const statusCases = reorderedTasks
-          .map((task) => {
-            const status = task.id === draggedTaskId ? newStatus : task.status;
-            return `WHEN ${task.id} THEN ${status}`;
-          })
-          .join(' ');
-
-        const taskIds = reorderedTasks.map((task) => task.id).join(',');
-
-        // 执行批量更新
-        await manager.query(
-          `
-          UPDATE task_entity 
-          SET 
-            \`order\` = CASE id ${orderCases} END,
-            status = CASE id ${statusCases} END,
-            updatedAt = NOW()
-          WHERE id IN (${taskIds}) AND userId = ?
-        `,
-          [userId],
-        );
+        // 4. 更新被拖拽的任务
+        await manager.update(TaskEntity, draggedTaskId, updateData);
       });
+
+      return this.getTaskDetail(userId, draggedTaskId);
     } catch (error) {
       if (error instanceof CustomException) {
         throw error;
       }
-      throw new CustomException(ErrorCode.INTERNAL_ERROR, '批量重新排序任务失败');
+      throw new CustomException(ErrorCode.INTERNAL_ERROR, '拖拽更新任务排序失败');
+    }
+  }
+
+  // 辅助函数：确保order值唯一，不与现有任务的order值重复
+  private ensureUniqueOrder(candidateOrder: number, existingTasks: TaskEntity[], excludeTaskId?: number): number {
+    // 收集所有现有任务的order值（排除指定任务）
+    const allExistingOrders = new Set(
+      existingTasks.filter((task) => !excludeTaskId || task.id !== excludeTaskId).map((task) => task.order),
+    );
+
+    // 如果候选值已存在，递增直到找到唯一值
+    // 使用浮点数比较的容差值，避免精度问题
+    const epsilon = 0.0001;
+    let uniqueOrder = candidateOrder;
+    let attempts = 0;
+    const maxAttempts = 1000; // 防止无限循环
+
+    while (attempts < maxAttempts) {
+      // 检查是否有任何现有order值与候选值相等（考虑浮点数精度）
+      const isDuplicate = Array.from(allExistingOrders).some((existingOrder) => {
+        return Math.abs(existingOrder - uniqueOrder) < epsilon;
+      });
+
+      if (!isDuplicate) {
+        break;
+      }
+
+      // 如果重复，递增1000
+      uniqueOrder += 1000;
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      // 如果尝试次数过多，返回一个非常大的值
+      uniqueOrder = Math.max(...Array.from(allExistingOrders), 1000000) + 1000000;
+    }
+
+    return uniqueOrder;
+  }
+
+  // 重新平衡所有任务的order值（全局重排）
+  private async rebalanceAllTaskOrders(
+    manager: EntityManager,
+    userId: number,
+    draggedTask: TaskEntity,
+    newStatusNumber: number,
+    insertIndex: number,
+  ): Promise<void> {
+    // 获取用户的所有任务（除了要插入的任务），按order排序
+    const allTasks = await manager.find(TaskEntity, {
+      where: { userId },
+      order: { order: 'DESC' },
+    });
+
+    // 移除要插入的任务
+    const tasksWithoutInserted = allTasks.filter((task: TaskEntity) => task.id !== draggedTask.id);
+
+    // 在指定位置插入任务占位符
+    const reorderedTasks = [...tasksWithoutInserted];
+    reorderedTasks.splice(insertIndex, 0, draggedTask);
+
+    // 重新分配所有任务的order值（全局唯一）
+    const baseOrder = 1000000;
+    const increment = 1000;
+
+    const now = new Date();
+    const statusChanged = draggedTask.status !== newStatusNumber;
+
+    const updatePromises = reorderedTasks.map((task, index) => {
+      const newOrder = baseOrder + (reorderedTasks.length - index - 1) * increment;
+
+      // 如果是被拖拽的任务，需要同时更新状态和处理状态变化
+      if (task.id === draggedTask.id) {
+        const updateData: Partial<TaskEntity> = {
+          order: newOrder,
+          status: newStatusNumber,
+        };
+
+        if (statusChanged) {
+          this.processStatusChangeForDraggedTask(draggedTask, newStatusNumber, updateData, now);
+        }
+
+        return manager.update(TaskEntity, task.id, updateData);
+      } else {
+        // 其他任务只更新order值
+        return manager.update(TaskEntity, task.id, { order: newOrder });
+      }
+    });
+
+    await Promise.all(updatePromises);
+  }
+
+  // 处理拖拽任务的状态变化时间节点
+  private processStatusChangeForDraggedTask(
+    draggedTask: TaskEntity,
+    newStatus: number,
+    updateData: Partial<TaskEntity>,
+    now: Date,
+  ): void {
+    const oldStatusNumber = draggedTask.status;
+    const todoStatus = StatusMapper.taskStatusToNumber('todo');
+    const inprogressStatus = StatusMapper.taskStatusToNumber('inprogress');
+    const doneStatus = StatusMapper.taskStatusToNumber('done');
+
+    // 状态变化逻辑
+    if (newStatus === inprogressStatus && oldStatusNumber === todoStatus) {
+      updateData.startedAt = now;
+      updateData.pausedAt = null;
+    } else if (newStatus === doneStatus) {
+      updateData.finishedAt = now;
+      if (!draggedTask.startedAt) {
+        updateData.startedAt = now;
+      }
+    } else if (newStatus === todoStatus && oldStatusNumber === inprogressStatus) {
+      updateData.pausedAt = now;
+      updateData.finishedAt = null;
+    } else if (newStatus === inprogressStatus && oldStatusNumber === doneStatus) {
+      updateData.finishedAt = null;
+      updateData.startedAt = now;
     }
   }
 
@@ -400,16 +471,16 @@ export class TasksService {
       status: StatusMapper.taskStatusToString(task.status),
       priority: StatusMapper.priorityToString(task.priority),
       dateType: StatusMapper.dateTypeToString(task.dateType),
-      remindType: task.remindType ? StatusMapper.remindTypeToString(task.remindType) : null,
-      repeatType: task.repeatType ? StatusMapper.repeatTypeToString(task.repeatType) : null,
+      remindType: StatusMapper.remindTypeToString(task.remindType),
+      repeatType: StatusMapper.repeatTypeToString(task.repeatType),
       tags: task.taskTag?.map((tt) => ({ value: tt.tag.id, label: tt.tag.name })) || [],
       // 状态时间节点信息
-      timeline: {
-        createdAt: task.createdAt ? dayjs(task.createdAt).format('YYYY-MM-DD HH:mm:ss') : null,
-        startedAt: task.startedAt ? dayjs(task.startedAt).format('YYYY-MM-DD HH:mm:ss') : null,
-        pausedAt: task.pausedAt ? dayjs(task.pausedAt).format('YYYY-MM-DD HH:mm:ss') : null,
-        finishedAt: task.finishedAt ? dayjs(task.finishedAt).format('YYYY-MM-DD HH:mm:ss') : null,
-        updatedAt: dayjs(task.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
+      timeLine: {
+        createdAt: task.createdAt ? dayjs(task.createdAt).format('YYYY-MM-DD HH:mm:ss') : null, // 创建时间
+        startedAt: task.startedAt ? dayjs(task.startedAt).format('YYYY-MM-DD HH:mm:ss') : null, // 开始时间
+        pausedAt: task.pausedAt ? dayjs(task.pausedAt).format('YYYY-MM-DD HH:mm:ss') : null, // 暂停时间
+        finishedAt: task.finishedAt ? dayjs(task.finishedAt).format('YYYY-MM-DD HH:mm:ss') : null, // 完成时间
+        updatedAt: dayjs(task.updatedAt).format('YYYY-MM-DD HH:mm:ss'), // 更新时间
       },
       isOverdue,
     };
@@ -436,7 +507,7 @@ export class TasksService {
     }
 
     if (priority !== undefined) {
-      query = query.andWhere('task.priority = :priority', { priority });
+      query = query.andWhere('task.priority = :priority', { priority: StatusMapper.priorityToNumber(priority) });
     }
 
     if (keyword) {
@@ -483,11 +554,15 @@ export class TasksService {
     // 分页和排序
     const from = (current - 1) * size;
     query = query
-      .orderBy('task.priority', 'DESC') // 优先级高的在前
-      .addOrderBy('task.dueDate', 'ASC') // 日期早的在前
-      .addOrderBy('task.createdAt', 'DESC') // 创建时间新的在前
+      .orderBy('task.order', 'DESC') // 排序大的在前
       .skip(from)
       .take(size);
+    // query = query
+    //   .orderBy('task.priority', 'DESC') // 优先级高的在前
+    //   .addOrderBy('task.dueDate', 'ASC') // 日期早的在前
+    //   .addOrderBy('task.createdAt', 'DESC') // 创建时间新的在前
+    //   .skip(from)
+    //   .take(size);
 
     const [taskData, total] = await query.getManyAndCount();
 
@@ -500,7 +575,7 @@ export class TasksService {
           dateType: StatusMapper.dateTypeToString(item.dateType),
           tags: item.taskTag?.map((tt) => tt.tag) || [],
           isOverdue: this.isTaskOverdue(item),
-          timeline: {
+          timeLine: {
             createdAt: dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss'),
             startedAt: item.startedAt ? dayjs(item.startedAt).format('YYYY-MM-DD HH:mm:ss') : null,
             finishedAt: item.finishedAt ? dayjs(item.finishedAt).format('YYYY-MM-DD HH:mm:ss') : null,

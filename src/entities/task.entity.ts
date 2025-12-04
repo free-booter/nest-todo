@@ -48,7 +48,8 @@ export class TaskEntity {
   @Column()
   userId: number;
 
-  @Column()
+  // 浮点数
+  @Column({ type: 'double precision' })
   order: number;
 
   @OneToMany(() => TaskTagEntity, (taskTag) => taskTag.task)

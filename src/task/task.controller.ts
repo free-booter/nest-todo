@@ -1,4 +1,17 @@
-import { Controller, Post, Body, UseGuards, Req, Patch, Param, Get, Put, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Req,
+  Patch,
+  Param,
+  Get,
+  Put,
+  Delete,
+  Query,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { TasksService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ApiOperation, ApiParam } from '@nestjs/swagger';
@@ -23,7 +36,11 @@ export class TasksController {
   @ApiOperation({ summary: '更新任务状态' })
   @ApiParam({ name: 'id', description: '任务ID' })
   @UseGuards(JwtAuthGuard)
-  updateStatus(@Param('id') taskId: number, @Body() updateTaskStatusDto: UpdateTaskStatusDto, @Req() req: UserRequest) {
+  updateStatus(
+    @Param('id', ParseIntPipe) taskId: number,
+    @Body() updateTaskStatusDto: UpdateTaskStatusDto,
+    @Req() req: UserRequest,
+  ) {
     const userId = req.user.id;
     return this.tasksService.updateTaskStatus(userId, taskId, updateTaskStatusDto.status);
   }
@@ -49,7 +66,7 @@ export class TasksController {
   @Get('detail/:id')
   @ApiOperation({ summary: '获取任务详情' })
   @UseGuards(JwtAuthGuard)
-  getTaskDetail(@Param('id') id: number, @Req() req: UserRequest) {
+  getTaskDetail(@Param('id', ParseIntPipe) id: number, @Req() req: UserRequest) {
     return this.tasksService.getTaskDetail(req.user.id, id);
   }
 
@@ -63,22 +80,22 @@ export class TasksController {
   @Delete('delete')
   @ApiOperation({ summary: '删除任务' })
   @UseGuards(JwtAuthGuard)
-  deleteTask(@Query('id') id: number, @Req() req: UserRequest) {
+  deleteTask(@Query('id', ParseIntPipe) id: number, @Req() req: UserRequest) {
     return this.tasksService.deleteTask(req.user.id, id);
   }
 
   @Patch(':id/order')
-  @ApiOperation({ summary: '更新任务排序' })
-  @ApiParam({ name: 'id', description: '任务ID' })
+  @ApiOperation({ summary: '拖拽更新任务排序' })
+  @ApiParam({ name: 'id', description: '被拖拽的任务ID' })
   @UseGuards(JwtAuthGuard)
   updateTaskOrder(
-    @Param('id') taskId: number,
+    @Param('id', ParseIntPipe) draggedTaskId: number,
     @Body() updateTaskOrderDto: UpdateTaskOrderDto,
     @Req() req: UserRequest,
   ) {
     const userId = req.user.id;
-    const { order, status, prevOrder } = updateTaskOrderDto;
-    return this.tasksService.updateTaskOrder(userId, taskId, order, status, prevOrder);
+    const { dropId, dropStatus } = updateTaskOrderDto;
+    return this.tasksService.updateTaskOrder(userId, draggedTaskId, dropId, dropStatus);
   }
 
   @Get('counts')
@@ -87,12 +104,13 @@ export class TasksController {
   getTaskCounts(@Req() req: UserRequest) {
     return this.tasksService.getTaskCounts(req.user.id);
   }
-  // @Put('updateStatus')
-  // @ApiOperation({ summary: '更新任务状态' })
-  // @UseGuards(JwtAuthGuard)
-  // async updateTaskStatus(@Body() updateTaskStatusDto: UpdateTaskDto, @Req() req: UserRequest) {
-  //   return this.tasksService.updateTaskStatus(req.user.id, updateTaskStatusDto.id, updateTaskStatusDto.status);
-  // }
+
+  @Put('updateStatus')
+  @ApiOperation({ summary: '更新任务状态' })
+  @UseGuards(JwtAuthGuard)
+  updateTaskStatus(@Body() updateTaskStatusDto: UpdateTaskStatusDto, @Req() req: UserRequest) {
+    return this.tasksService.updateTaskStatus(req.user.id, updateTaskStatusDto.id, updateTaskStatusDto.status);
+  }
 
   // @Get('statistic')
   // @ApiOperation({ summary: '获取任务统计数据' })

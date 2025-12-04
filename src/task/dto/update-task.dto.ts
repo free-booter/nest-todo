@@ -13,21 +13,24 @@ export class UpdateTaskDto extends PartialType(CreateTaskDto) {
 
 // 拖拽排序 DTO
 export class UpdateTaskOrderDto {
-  @IsNumber({}, { message: 'order必须是数字' })
-  @IsNotEmpty({ message: 'order不能为空' })
-  order: number;
-
-  @IsEnum(TaskStatus, { message: '无效的任务状态' })
-  @IsNotEmpty({ message: '状态不能为空' })
-  status: TaskStatus;
-
+  @ApiProperty({ description: '拖放目标任务ID，null表示放到列的最顶部', required: false, example: 123 })
   @IsOptional()
-  @IsNumber({}, { message: 'prevOrder必须是数字' })
-  prevOrder?: number;
+  @IsNumber({}, { message: 'dropId必须是数字' })
+  dropId?: number;
+
+  @ApiProperty({ description: '目标状态列', enum: TaskStatus, example: 'todo' })
+  @IsEnum(TaskStatus, { message: '无效的任务状态' })
+  @IsNotEmpty({ message: '目标状态不能为空' })
+  dropStatus: TaskStatus;
 }
 
 // 状态更新 DTO
 export class UpdateTaskStatusDto {
+  @ApiProperty({ description: '任务ID', required: true })
+  @IsNotEmpty({ message: '任务ID不能为空' })
+  @IsNumber({}, { message: '任务ID必须是数字' })
+  id: number;
+
   @IsEnum(TaskStatus, { message: '无效的任务状态' })
   @IsNotEmpty({ message: '状态不能为空' })
   status: TaskStatus;
