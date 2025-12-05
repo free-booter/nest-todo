@@ -29,7 +29,7 @@ export class TasksService {
       return dayjs().isAfter(dayjs(task.dueDate).endOf('day')) ? true : false;
     }
     if (task.status === StatusMapper.taskStatusToNumber('done') && task.finishedAt) {
-      return dayjs().isAfter(dayjs(task.dueDate).add(1, 'day').subtract(1, 'second')) ? true : false;
+      return dayjs(task.finishedAt).isAfter(dayjs(task.dueDate).endOf('day')) ? true : false;
     }
     return false;
   }
